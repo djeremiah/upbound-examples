@@ -1,0 +1,47 @@
+apiVersion: ec2.aws.upbound.io/v1beta1
+kind: KeyPair
+metadata:
+  name: ansible-ssh-access
+spec:
+  forProvider:
+    publicKey: |-
+      PUBLIC KEY!  
+    region: eu-west-1
+---
+apiVersion: ec2.aws.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: instance
+spec:
+  forProvider:
+    ami: ami-0779c326801d5a843
+    instanceType: t2.micro
+    region: eu-west-1
+    keyName: ansible-ssh-access
+    vpcSecurityGroupIdRefs:
+    - name: ssh-access
+---
+apiVersion: ec2.aws.upbound.io/v1beta1
+kind: SecurityGroup
+metadata:
+  name: ssh-access
+spec:
+  forProvider:
+    description: Allow SSH inbound traffic
+    region: eu-west-1
+---
+apiVersion: ec2.aws.upbound.io/v1beta1
+kind: SecurityGroupRule
+metadata:
+  name: allow-ssh
+spec:
+  forProvider:
+    cidrBlocks:
+    - 0.0.0.0/0
+    fromPort: 22
+    protocol: tcp
+    region: eu-west-1
+    securityGroupIdRef:
+      name: ssh-access
+    toPort: 22
+    type: ingress

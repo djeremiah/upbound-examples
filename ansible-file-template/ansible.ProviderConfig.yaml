@@ -1,0 +1,12 @@
+apiVersion: ansible.crossplane.io/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    - filename: ssh_key
+      source: Secret
+      secretRef:
+        namespace: upbound-system
+        name: ansible-ssh-access
+        key: ssh-privatekey
