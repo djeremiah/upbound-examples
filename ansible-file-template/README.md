@@ -1,5 +1,7 @@
 # Upbound Example - Using provider-ansible to deploy a file template to an existing VM
 
+This repository demonstrates using a [role](https://github.com/djeremiah/crossplane-motd) to update the message of the day (motd) by copying a file to a remote EC2 instance.
+
 ## Running the demo
 - Install UXP, provider-aws, and provider-ansible
 - Configure provider-aws as normal
@@ -10,4 +12,4 @@
 - Create a connection secret for the ansible provider `kubectl create secret generic ansible-ssh-access -n upbound-system --from-file=ssh-privatekey=id_rsa`
 - Configure provider-ansible `kubectl apply -f ansible.ProviderConfig.yaml`
 - Deploy the ansible run `kubectl apply -f ansiblerun.yaml`
-- You can confirm that the file `/etc/foo.conf` has been created by connecting to the EC2 instance and listing the directory
+- You can confirm that the file has been added to the correct location by connecting to the EC2 instance and observing the updated motd.
