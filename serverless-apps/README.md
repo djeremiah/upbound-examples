@@ -91,19 +91,23 @@ This example is still under development. A high-level set of goals can be seen h
 :red_circle: Blocked
 
 Phase 1
+
 Function
 - :black_circle: Execution Role
 - :black_circle: Default Execution Policy
 - :black_circle: Refactor image build to zip
+
 Alias
 - :red_circle: Version Mapping <- there seems to be a bug in the id function for this resource
 - :black_circle: Provisioned Concurrency
+
 ServerlessApp
 - Function with Version
 - Publish new Version
 
 
 Phase 2
+
 Event Source Mappings
 - :white_circle: DynamoDB
 - :white_circle: MSK
@@ -111,9 +115,12 @@ Event Source Mappings
 - :white_circle: SNS direct
 - :white_circle: SQS
 - :white_circle: SNS over SQS
+
 :white_circle: Conditional Configuration of source in ServerlessApp
+
 :black_circle: Namespaced Environment in Compositions
 
 Phase 3 
+
 :white_circle: Provisioning of Sources as part of Serverless App
 
