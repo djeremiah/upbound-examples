@@ -1,0 +1,54 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: xaccountsetups.aws.example.com
+  labels:
+    crossplane.io/xrd: xaccountsetups.aws.example.com
+spec:
+  compositeTypeRef:
+    apiVersion: aws.example.com/v1alpha1
+    kind: XAccountSetup
+  resources:
+  - name: environmentconfig 
+    base:
+      apiVersion: apiextensions.crossplane.io/v1alpha1
+      kind: EnvironmentConfig
+      metadata:
+        labels:
+          namespace: default
+      data:
+        tags: {}
+        region: us-east-1
+        providerConfig: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: metadata.name
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: data.providerConfig
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.tags 
+      toFieldPath: data.tags
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.namespace 
+      toFieldPath: metadata.labels[namespace]
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.region 
+      toFieldPath: data.region
+  - name: providerconfig 
+    base: 
+      apiVersion: aws.upbound.io/v1beta1
+      kind: ProviderConfig
+      spec:
+        assumeRoleChain: []
+        credentials:
+          source: IRSA
+    patches: 
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name 
+      toFieldPath: metadata.name
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.roleARN
+      toFieldPath: spec.assumeRoleChain[0].roleARN
+  

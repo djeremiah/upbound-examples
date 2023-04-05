@@ -1,0 +1,39 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xreleases.lambda.aws.example.com
+spec:
+  group: lambda.aws.example.com
+  names:
+    kind: XRelease
+    plural: xreleases
+  claimNames:
+    kind: Release
+    plural: releases
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                parameters:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      description: ID of this release. It will be used as the qualifier on the function ARN
+                    function: 
+                      type: string
+                      description: Name of the function to release
+                    version: 
+                      type: string
+                      description: Version of the function to associate with the release
+                    concurrency:
+                      type: integer
+                      description: Number of pre-initialized function instances
+                    

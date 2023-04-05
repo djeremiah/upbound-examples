@@ -1,0 +1,15 @@
+apiVersion: lambda.aws.example.com/v1alpha1
+kind: Function
+metadata:
+  name: lambda
+spec:
+  parameters:
+    name: lambda-test
+    runtime: java11
+    handler: example.Handler::handleRequest
+    architecture: "arm64"
+    package:
+      type: Zip
+      zip:
+        s3bucket: example-lambda
+        s3key: lambda-0.1.1.zip

@@ -1,0 +1,39 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xaccountsetups.aws.example.com
+spec:
+  group: aws.example.com
+  names:
+    kind: XAccountSetup
+    plural: xaccountsetups
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                parameters:
+                  type: object
+                  properties:
+                    namespace:
+                      type: string
+                      description: Kubernetes namespace assigned to this account
+                    region:
+                      type: string
+                      description: AWS region where resources will be created 
+                    roleARN:
+                      type: string
+                      description: AWS Role with required permissions for this account
+                    tags:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                  required:
+                  - namespace 
+                  - region
+                  - roleARN

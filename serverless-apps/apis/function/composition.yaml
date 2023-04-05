@@ -1,0 +1,137 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: xfunctions.lambda.aws.example.com
+  labels:
+    crossplane.io/xrd: xfunctions.lambda.aws.example.com
+spec:
+  compositeTypeRef:
+    apiVersion: lambda.aws.example.com/v1alpha1
+    kind: XFunction
+  environment:
+    environmentConfigs:
+      - type: Selector 
+        selector: 
+          matchLabels:
+          - key: namespace
+            type: FromCompositeFieldPath
+            valueFromFieldPath: metadata.labels[crossplane.io/claim-namespace]
+  patchSets:
+  - name: common-patches
+    patches:
+    - type: FromEnvironmentFieldPath
+      fromFieldPath: providerConfig
+      toFieldPath: spec.providerConfigRef.name
+    - type: FromEnvironmentFieldPath
+      fromFieldPath: tags
+      toFieldPath: spec.forProvider.tags
+      policy:
+        mergeOptions:
+          keepMapValues: true
+  resources:
+  - name: role 
+    base: 
+      apiVersion: iam.aws.upbound.io/v1beta1
+      kind: Role
+      spec:
+        forProvider:
+          assumeRolePolicy: |
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": "lambda.amazonaws.com"
+                        },
+                        "Action": "sts:AssumeRole"
+                    }
+                ]
+            }
+    patches:
+    - type: PatchSet
+      patchSetName: common-patches
+    - type: CombineFromComposite
+      combine:
+        variables:
+          - fromFieldPath: metadata.labels[crossplane.io/claim-name]
+          - fromFieldPath: metadata.labels[crossplane.io/claim-namespace]
+        strategy: string 
+        string: 
+          fmt: "%s-%s-role"
+      toFieldPath: metadata.name
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.name
+      toFieldPath: metadata.annotations[crossplane.io/external-name]
+      transforms:
+      - type: string
+        string:
+          type: Format
+          fmt: "%s-role"
+  - name: rolepolicyattachment
+    base: 
+      apiVersion: iam.aws.upbound.io/v1beta1
+      kind: RolePolicyAttachment
+      spec:
+        forProvider:
+          policyArn: arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+          roleSelector:
+            matchControllerRef: true
+    patches:
+    - type: PatchSet
+      patchSetName: common-patches
+    - type: CombineFromComposite
+      combine:
+        variables:
+          - fromFieldPath: metadata.labels[crossplane.io/claim-name]
+          - fromFieldPath: metadata.labels[crossplane.io/claim-namespace]
+        strategy: string 
+        string: 
+          fmt: "%s-%s-rolepolicy"
+      toFieldPath: metadata.name
+  - name: function
+    base:
+      apiVersion: lambda.aws.upbound.io/v1beta1
+      kind: Function
+      spec:
+        forProvider:
+          architectures: ["x86_64"]
+          publish: true
+          roleSelector:
+            matchControllerRef: true
+    patches:
+    - type: PatchSet
+      patchSetName: common-patches
+    - type: CombineFromComposite
+      combine:
+        variables:
+          - fromFieldPath: metadata.labels[crossplane.io/claim-name]
+          - fromFieldPath: metadata.labels[crossplane.io/claim-namespace]
+        strategy: string 
+        string: 
+          fmt: "%s-%s"
+      toFieldPath: metadata.name
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.name
+      toFieldPath: metadata.annotations[crossplane.io/external-name]
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.package.type
+      toFieldPath: spec.forProvider.packageType
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.package.zip.s3bucket
+      toFieldPath: spec.forProvider.s3Bucket
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.package.zip.s3key
+      toFieldPath: spec.forProvider.s3Key
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.architecture 
+      toFieldPath: spec.forProvider.architectures[0]
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.runtime
+      toFieldPath: spec.forProvider.runtime
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.handler
+      toFieldPath: spec.forProvider.handler
+    - type: FromEnvironmentFieldPath
+      fromFieldPath: region
+      toFieldPath: spec.forProvider.region

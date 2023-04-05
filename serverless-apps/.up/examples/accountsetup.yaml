@@ -1,0 +1,12 @@
+apiVersion: aws.example.com/v1alpha1
+kind: XAccountSetup
+metadata:
+  name: project-a
+spec:
+  parameters:
+    namespace: eu
+    region: eu-west-1
+    roleARN: arn:aws:iam::${accountid}:role/murph-eu-projectrole
+    tags:
+      owner: Murph
+      projectCode: xxxx

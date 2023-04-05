@@ -1,0 +1,10 @@
+apiVersion: lambda.aws.example.com/v1alpha1
+kind: Release
+metadata:
+  name: lambda-release
+spec:
+  parameters:
+    name: release
+    function: lambda-test-0405
+    version: "2"
+    concurrency: 2

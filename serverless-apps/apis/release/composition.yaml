@@ -1,0 +1,93 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: xreleases.lambda.aws.example.com
+  labels:
+    crossplane.io/xrd: xreleases.lambda.aws.example.com
+spec:
+  compositeTypeRef:
+    apiVersion: lambda.aws.example.com/v1alpha1
+    kind: XRelease
+  environment:
+    environmentConfigs:
+      - type: Selector 
+        selector: 
+          matchLabels:
+          - key: namespace
+            type: FromCompositeFieldPath
+            valueFromFieldPath: metadata.labels[crossplane.io/claim-namespace]
+  patchSets:
+  - name: common-patches
+    patches:
+    - type: FromEnvironmentFieldPath
+      fromFieldPath: providerConfig
+      toFieldPath: spec.providerConfigRef.name
+    - type: FromEnvironmentFieldPath
+      fromFieldPath: tags
+      toFieldPath: spec.forProvider.tags
+      policy:
+        mergeOptions:
+          keepMapValues: true
+  resources:
+  - name: alias
+    base:
+      apiVersion: lambda.aws.upbound.io/v1beta1
+      kind: Alias
+      spec:
+        forProvider: {}
+    patches:
+    - type: PatchSet
+      patchSetName: common-patches
+    - type: CombineFromComposite
+      combine:
+        variables:
+          - fromFieldPath: spec.parameters.function
+          - fromFieldPath: spec.parameters.name
+        strategy: string 
+        string: 
+          fmt: "%s-%s"
+      toFieldPath: metadata.name
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.name
+      toFieldPath: metadata.annotations[crossplane.io/external-name]
+    - type: FromEnvironmentFieldPath
+      fromFieldPath: region
+      toFieldPath: spec.forProvider.region
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.function
+      toFieldPath: spec.forProvider.functionName
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.version
+      toFieldPath: spec.forProvider.functionVersion
+  - name: provisionedconcurrency
+    base:
+      apiVersion: lambda.aws.upbound.io/v1beta1
+      kind: ProvisionedConcurrencyConfig
+      metadata:
+        name: example
+      spec:
+        forProvider: {}
+    patches:
+    - type: PatchSet
+      patchSetName: common-patches
+    - type: CombineFromComposite
+      combine:
+        variables:
+          - fromFieldPath: spec.parameters.function
+          - fromFieldPath: spec.parameters.name
+        strategy: string 
+        string: 
+          fmt: "%s-%s-concurrency"
+      toFieldPath: metadata.name
+    - type: FromEnvironmentFieldPath
+      fromFieldPath: region
+      toFieldPath: spec.forProvider.region
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.function
+      toFieldPath: spec.forProvider.functionName
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.name
+      toFieldPath: spec.forProvider.qualifier 
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.concurrency
+      toFieldPath: spec.forProvider.provisionedConcurrentExecutions

@@ -1,0 +1,77 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xfunctions.lambda.aws.example.com
+spec:
+  group: lambda.aws.example.com
+  names:
+    kind: XFunction
+    plural: xfunctions
+  claimNames:
+    kind: Function
+    plural: functions
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                parameters:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      description: Enter a name that describes the purpose of your function. Use only letters, numbers, hyphens, or underscores with no spaces.
+                    runtime:
+                      type: string
+                      description: Language used to write your function
+                    handler:
+                      type: string
+                      description: The method in your function code that processes events
+                    architecture:
+                      type: string
+                      description: Instruction Set Architecture for your function
+                      enum:
+                      - "arm64"
+                      - "x86_64"
+                    package:
+                      type: object
+                      description: Function deployment package, either .zip from S3 or ECR-hosted container image
+                      properties:
+                        type:
+                          type: string
+                          description: Function package type
+                          enum:
+                          - "Zip"
+                          - "Image"
+                        zip:
+                          type: object
+                          description: Zip package deployment parameters, present only if type equals 'Zip'
+                          properties:
+                            s3bucket:
+                              type: string
+                              description: S3 bucket containing the function's deployment package
+                            s3key:
+                              type: string
+                              description: S3 key of the function's deployment package
+                          required:
+                            - s3bucket 
+                            - s3key
+                      required:
+                        - type
+                  required:
+                    - name
+                    - package
+              required:
+                - parameters 
+            status:
+              type: object
+              properties: 
+                functionArn:
+                  type: string
+                  description: Function ARN
