@@ -75,3 +75,6 @@ spec:
                 functionArn:
                   type: string
                   description: Function ARN
+                version: 
+                  type: string
+                  description: Most recent published version

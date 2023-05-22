@@ -135,3 +135,9 @@ spec:
     - type: FromEnvironmentFieldPath
       fromFieldPath: region
       toFieldPath: spec.forProvider.region
+    - type: ToCompositeFieldPath
+      fromFieldPath: status.atProvider.arn
+      toFieldPath: status.functionArn
+    - type: ToCompositeFieldPath
+      fromFieldPath: status.atProvider.version
+      toFieldPath: status.version
