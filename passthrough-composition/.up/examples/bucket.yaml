@@ -1,0 +1,10 @@
+apiVersion: example.upbound.io/v1alpha1
+kind: Bucket
+metadata:
+  name: passthrough-bucket
+spec:
+  parameters: 
+    bucketName: murph-passthrough
+  forProvider: 
+    objectLockEnabled: true
+    
