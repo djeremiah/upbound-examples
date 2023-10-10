@@ -1,0 +1,63 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xservices.aws.caas.upbound.io
+spec:
+  group: aws.caas.upbound.io
+  names:
+    kind: XServices
+    plural: xservices
+  versions:
+  - name: v1alpha1
+    served: true
+    referenceable: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              deletionPolicy:
+                description: When the Composition is deleleted, delelete the AWS resources. Defaults to Delete
+                enum:
+                - Delete
+                - Orphan
+                type: string
+                default: Delete
+              gitops: 
+                type: object
+                description: GitOps configuration spec.parameters.
+                properties: 
+                  registerTo:
+                    type: string
+                    description: Cluster ID of gitops-master to register to.
+                  kubeConfigSecretRef: 
+                    type: object
+                    description: Secret holding the kubeconfig to register
+                    properties: 
+                      name: 
+                        type: string
+                        description: Name of Secret holding the kubeconfig to register
+                      namespace: 
+                        type: string
+                        description: Namespace of Secret holding the kubeconfig to register
+                    required: 
+                    - name
+                    - namespace
+                required:
+                - kubeConfigSecretRef
+              providerConfigRef:
+                type: object
+                description: "A reference to the ProviderConfig of the cluster that services should be deployed to."
+                properties:
+                  name:
+                    type: string
+                    description: "Name of the Kubernetes provider configuration.
+                      This will typically be the name of the cluster with a
+                      five character suffix appended."
+                required:
+                - name
+            required:
+            - providerConfigRef
+            - deletionPolicy

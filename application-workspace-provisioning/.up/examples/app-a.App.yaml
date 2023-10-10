@@ -1,0 +1,10 @@
+apiVersion: example.upbound.io/v1alpha1
+kind: App 
+metadata:
+  name: app-a
+spec:
+  parameters:
+    cluster: workload-host
+    namespace: guestbook
+    source: https://github.com/argoproj/argocd-example-apps.git
+    path: guestbook

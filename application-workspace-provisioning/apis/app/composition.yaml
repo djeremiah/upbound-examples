@@ -1,0 +1,53 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: xapps.example.upbound.io
+spec:
+  writeConnectionSecretsToNamespace: upbound-system
+  compositeTypeRef:
+    apiVersion: example.upbound.io/v1alpha1
+    kind: XApp
+  resources:
+    - name: namespace
+      base:
+        apiVersion: kubernetes.crossplane.io/v1alpha1
+        kind: Object
+        spec:
+          forProvider:
+            manifest: 
+              apiVersion: v1
+              kind: Namespace
+      patches:
+      - fromFieldPath: spec.parameters.namespace
+        toFieldPath: spec.forProvider.manifest.metadata.name
+      - fromFieldPath: spec.parameters.cluster
+        toFieldPath: spec.providerConfigRef.name
+    - name: application
+      base: 
+        apiVersion: kubernetes.crossplane.io/v1alpha1
+        kind: Object
+        spec: 
+          forProvider:  
+            manifest: 
+              apiVersion: argoproj.io/v1alpha1
+              kind: Application
+              metadata:
+                namespace: argocd
+              spec:
+                project: default
+                source:
+                  targetRevision: HEAD
+                destination: {}
+          providerConfigRef:
+            name: gitops-host
+      patches: 
+      - fromFieldPath: metadata.name
+        toFieldPath: spec.forProvider.manifest.metadata.name
+      - fromFieldPath: spec.parameters.source
+        toFieldPath: spec.forProvider.manifest.spec.source.repoURL
+      - fromFieldPath: spec.parameters.path
+        toFieldPath: spec.forProvider.manifest.spec.source.path
+      - fromFieldPath: spec.parameters.namespace
+        toFieldPath: spec.forProvider.manifest.spec.destination.namespace
+      - fromFieldPath: spec.parameters.cluster
+        toFieldPath: spec.forProvider.manifest.spec.destination.name

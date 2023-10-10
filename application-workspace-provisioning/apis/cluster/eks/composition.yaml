@@ -1,0 +1,698 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: xeks.aws.caas.upbound.io
+  labels:
+    provider: aws
+spec:
+  writeConnectionSecretsToNamespace: upbound-system
+  compositeTypeRef:
+    apiVersion: aws.caas.upbound.io/v1alpha1
+    kind: XEKS
+  patchSets:
+  - name: providerConfigRef
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.providerConfigName
+      toFieldPath: spec.providerConfigRef.name
+  - name: deletionPolicy
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.deletionPolicy
+      toFieldPath: spec.deletionPolicy
+  - name: region
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.region
+      toFieldPath: spec.forProvider.region
+  resources:
+    - name: controlplaneRole
+      base:
+        apiVersion: iam.aws.upbound.io/v1beta1
+        kind: Role
+        metadata:
+          labels:
+            role: controlplane
+        spec:
+          forProvider:
+            assumeRolePolicy: |
+              {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": [
+                                "eks.amazonaws.com"
+                            ]
+                        },
+                        "Action": [
+                            "sts:AssumeRole"
+                        ]
+                    }
+                ]
+              }
+      patches:
+        - type: PatchSet
+          patchSetName: providerConfigRef
+        - type: PatchSet
+          patchSetName: deletionPolicy
+    - name: clusterRolePolicyAttachment
+      base:
+        apiVersion: iam.aws.upbound.io/v1beta1
+        kind: RolePolicyAttachment
+        spec:
+          forProvider:
+            policyArn: arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+            roleSelector:
+              matchControllerRef: true
+              matchLabels:
+                role: controlplane
+      patches:
+        - type: PatchSet
+          patchSetName: providerConfigRef
+        - type: PatchSet
+          patchSetName: deletionPolicy
+    - name: kubernetesCluster
+      base:
+        apiVersion: eks.aws.upbound.io/v1beta1
+        kind: Cluster
+        spec:
+          forProvider:
+            roleArnSelector:
+              matchControllerRef: true
+              matchLabels:
+                role: controlplane
+            vpcConfig:
+              - endpointPrivateAccess: true
+                endpointPublicAccess: true
+      patches:
+        - type: PatchSet
+          patchSetName: providerConfigRef
+        - type: PatchSet
+          patchSetName: deletionPolicy
+        - type: PatchSet
+          patchSetName: region
+        - fromFieldPath: spec.parameters.subnetIds
+          toFieldPath: spec.forProvider.vpcConfig[0].subnetIds
+        - fromFieldPath: spec.parameters.version
+          toFieldPath: spec.forProvider.version
+        - type: ToCompositeFieldPath
+          fromFieldPath: status.atProvider.identity[0].oidc[0].issuer
+          toFieldPath: status.eks.oidc
+          policy:
+            fromFieldPath: Optional
+        - type: ToCompositeFieldPath
+          fromFieldPath: status.atProvider.identity[0].oidc[0].issuer
+          toFieldPath: status.eks.oidcUri
+          transforms:
+            - type: string
+              string:
+                type: TrimPrefix
+                trim: 'https://'
+          policy:
+            fromFieldPath: Optional
+        - type: ToCompositeFieldPath
+          fromFieldPath: status.atProvider.roleArn
+          toFieldPath: status.eks.accountId
+          transforms:
+          - type: string
+            string:
+              type: Regexp
+              regexp:
+                match: 'arn:aws:iam::(\d+):.*'
+                group: 1
+          policy:
+            fromFieldPath: Optional
+    - name: kubernetesClusterAuth
+      base:
+        apiVersion: eks.aws.upbound.io/v1beta1
+        kind: ClusterAuth
+        spec:
+          forProvider:
+            clusterNameSelector:
+              matchControllerRef: true
+      patches:
+        - type: PatchSet
+          patchSetName: providerConfigRef
+        - type: PatchSet
+          patchSetName: deletionPolicy
+        - type: PatchSet
+          patchSetName: region
+        - fromFieldPath: spec.writeConnectionSecretToRef.namespace
+          toFieldPath: spec.writeConnectionSecretToRef.namespace
+        - fromFieldPath: metadata.uid
+          toFieldPath: spec.writeConnectionSecretToRef.name
+          transforms:
+            - type: string
+              string:
+                fmt: "%s-ekscluster"
+      connectionDetails:
+        - fromConnectionSecretKey: kubeconfig
+    - name: nodegroupRole
+      base:
+        apiVersion: iam.aws.upbound.io/v1beta1
+        kind: Role
+        metadata:
+          labels:
+            role: nodegroup
+        spec:
+          forProvider:
+            assumeRolePolicy: |
+              {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": [
+                                "ec2.amazonaws.com"
+                            ]
+                        },
+                        "Action": [
+                            "sts:AssumeRole"
+                        ]
+                    }
+                ]
+              }
+      patches:
+        - type: PatchSet
+          patchSetName: providerConfigRef
+        - type: PatchSet
+          patchSetName: deletionPolicy
+    - name: workerNodeRolePolicyAttachment
+      base:
+        apiVersion: iam.aws.upbound.io/v1beta1
+        kind: RolePolicyAttachment
+        spec:
+          forProvider:
+            policyArn: arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+            roleSelector:
+              matchControllerRef: true
+              matchLabels:
+                role: nodegroup
+      patches:
+        - type: PatchSet
+          patchSetName: providerConfigRef
+        - type: PatchSet
+          patchSetName: deletionPolicy
+    - name: cniRolePolicyAttachment
+      base:
+        apiVersion: iam.aws.upbound.io/v1beta1
+        kind: RolePolicyAttachment
+        spec:
+          forProvider:
+            policyArn: arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+            roleSelector:
+              matchControllerRef: true
+              matchLabels:
+                role: nodegroup
+      patches:
+        - type: PatchSet
+          patchSetName: providerConfigRef
+        - type: PatchSet
+          patchSetName: deletionPolicy
+    - name: ebsCsiRolePolicyAttachment
+      base:
+        apiVersion: iam.aws.upbound.io/v1beta1
+        kind: RolePolicyAttachment
+        spec:
+          forProvider:
+            policyArn: arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
+            roleSelector:
+              matchControllerRef: true
+              matchLabels:
+                role: nodegroup
+      patches:
+        - type: PatchSet
+          patchSetName: providerConfigRef
+        - type: PatchSet
+          patchSetName: deletionPolicy
+    - name: containerRegistryRolePolicyAttachment
+      base:
+        apiVersion: iam.aws.upbound.io/v1beta1
+        kind: RolePolicyAttachment
+        spec:
+          forProvider:
+            policyArn: arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+            roleSelector:
+              matchControllerRef: true
+              matchLabels:
+                role: nodegroup
+      patches:
+        - type: PatchSet
+          patchSetName: providerConfigRef
+        - type: PatchSet
+          patchSetName: deletionPolicy
+    - name: nodeGroupPublic
+      base:
+        apiVersion: eks.aws.upbound.io/v1beta1
+        kind: NodeGroup
+        spec:
+          forProvider:
+            clusterNameSelector:
+              matchControllerRef: true
+            nodeRoleArnSelector:
+              matchControllerRef: true
+              matchLabels:
+                role: nodegroup
+            subnetIdSelector:
+              matchLabels:
+                access: public
+            scalingConfig:
+              - minSize: 1
+                maxSize: 100
+                desiredSize: 1
+            instanceTypes:
+              - t3.medium
+      patches:
+        - type: PatchSet
+          patchSetName: providerConfigRef
+        - type: PatchSet
+          patchSetName: deletionPolicy
+        - type: PatchSet
+          patchSetName: region
+        - fromFieldPath: spec.parameters.nodes.count
+          toFieldPath: spec.forProvider.scalingConfig[0].desiredSize
+        - fromFieldPath: spec.parameters.nodes.size
+          toFieldPath: spec.forProvider.instanceTypes[0]
+          transforms:
+            - type: map
+              map:
+                small: t3.small
+                medium: t3.medium
+                large: t3.large
+        - fromFieldPath: spec.parameters.id
+          toFieldPath: spec.forProvider.subnetIdSelector.matchLabels[networks.aws.caas.upbound.io/network-id]
+    - name: ebsCsiAddon
+      base:
+        apiVersion: eks.aws.upbound.io/v1beta1
+        kind: Addon
+        metadata:
+          annotations:
+            crossplane.io/external-name: aws-ebs-csi-driver
+        spec:
+          forProvider:
+            addonName: aws-ebs-csi-driver
+            clusterNameSelector:
+              matchControllerRef: true
+      
+      patches:
+        - type: PatchSet
+          patchSetName: providerConfigRef
+        - type: PatchSet
+          patchSetName: deletionPolicy
+        - type: PatchSet
+          patchSetName: region
+    - name: oidcProvider
+      base:
+        apiVersion: iam.aws.upbound.io/v1beta1
+        kind: OpenIDConnectProvider
+        spec:
+          forProvider:
+            clientIdList:
+              - sts.amazonaws.com
+            thumbprintList:
+              - "9e99a48a9960b14926bb7f3b02e22da2b0ab7280"
+      
+      patches:
+        - type: PatchSet
+          patchSetName: providerConfigRef
+        - type: PatchSet
+          patchSetName: deletionPolicy
+        - fromFieldPath: status.eks.oidc
+          toFieldPath: spec.forProvider.url
+          policy:
+            fromFieldPath: Required
+    - name: loadbalancerRole
+      base:
+        apiVersion: iam.aws.upbound.io/v1beta1
+        kind: Role
+        metadata:
+          labels: 
+            role: loadbalancer
+      patches:
+      - type: ToCompositeFieldPath
+        fromFieldPath: status.atProvider.arn
+        toFieldPath: status.eks.loadBalancer.roleArn 
+      - type: CombineFromComposite
+        toFieldPath: spec.forProvider.assumeRolePolicy
+        combine:
+          strategy: string
+          variables:
+          - fromFieldPath: status.eks.accountId
+          - fromFieldPath: status.eks.oidcUri
+          - fromFieldPath: status.eks.oidcUri
+          string:
+            fmt: |
+              {
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Principal": {
+                      "Federated": "arn:aws:iam::%s:oidc-provider/%s"
+                    },
+                    "Action": "sts:AssumeRoleWithWebIdentity",
+                    "Condition": {
+                      "StringEquals": {
+                        "%s:sub": "system:serviceaccount:kube-system:aws-load-balancer-controller"
+                      }
+                    }
+                  }
+                ]
+              }
+    - name: loadbalancerPolicy
+      base:
+        apiVersion: iam.aws.upbound.io/v1beta1
+        kind: Policy
+        metadata:
+          labels: 
+            role: loadbalancer
+        spec: 
+          forProvider: 
+            policy: | 
+              {
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "iam:CreateServiceLinkedRole"
+                    ],
+                    "Resource": "*",
+                    "Condition": {
+                      "StringEquals": {
+                        "iam:AWSServiceName": "elasticloadbalancing.amazonaws.com"
+                      }
+                    }
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "ec2:DescribeAccountAttributes",
+                      "ec2:DescribeAddresses",
+                      "ec2:DescribeAvailabilityZones",
+                      "ec2:DescribeInternetGateways",
+                      "ec2:DescribeVpcs",
+                      "ec2:DescribeVpcPeeringConnections",
+                      "ec2:DescribeSubnets",
+                      "ec2:DescribeSecurityGroups",
+                      "ec2:DescribeInstances",
+                      "ec2:DescribeNetworkInterfaces",
+                      "ec2:DescribeTags",
+                      "ec2:GetCoipPoolUsage",
+                      "ec2:DescribeCoipPools",
+                      "elasticloadbalancing:DescribeLoadBalancers",
+                      "elasticloadbalancing:DescribeLoadBalancerAttributes",
+                      "elasticloadbalancing:DescribeListeners",
+                      "elasticloadbalancing:DescribeListenerCertificates",
+                      "elasticloadbalancing:DescribeSSLPolicies",
+                      "elasticloadbalancing:DescribeRules",
+                      "elasticloadbalancing:DescribeTargetGroups",
+                      "elasticloadbalancing:DescribeTargetGroupAttributes",
+                      "elasticloadbalancing:DescribeTargetHealth",
+                      "elasticloadbalancing:DescribeTags"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "cognito-idp:DescribeUserPoolClient",
+                      "acm:ListCertificates",
+                      "acm:DescribeCertificate",
+                      "iam:ListServerCertificates",
+                      "iam:GetServerCertificate",
+                      "waf-regional:GetWebACL",
+                      "waf-regional:GetWebACLForResource",
+                      "waf-regional:AssociateWebACL",
+                      "waf-regional:DisassociateWebACL",
+                      "wafv2:GetWebACL",
+                      "wafv2:GetWebACLForResource",
+                      "wafv2:AssociateWebACL",
+                      "wafv2:DisassociateWebACL",
+                      "shield:GetSubscriptionState",
+                      "shield:DescribeProtection",
+                      "shield:CreateProtection",
+                      "shield:DeleteProtection"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "ec2:AuthorizeSecurityGroupIngress",
+                      "ec2:RevokeSecurityGroupIngress"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "ec2:CreateSecurityGroup"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "ec2:CreateTags"
+                    ],
+                    "Resource": "arn:aws:ec2:*:*:security-group/*",
+                    "Condition": {
+                      "StringEquals": {
+                        "ec2:CreateAction": "CreateSecurityGroup"
+                      },
+                      "Null": {
+                        "aws:RequestTag/elbv2.k8s.aws/cluster": "false"
+                      }
+                    }
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "ec2:CreateTags",
+                      "ec2:DeleteTags"
+                    ],
+                    "Resource": "arn:aws:ec2:*:*:security-group/*",
+                    "Condition": {
+                      "Null": {
+                        "aws:RequestTag/elbv2.k8s.aws/cluster": "true",
+                        "aws:ResourceTag/elbv2.k8s.aws/cluster": "false"
+                      }
+                    }
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "ec2:AuthorizeSecurityGroupIngress",
+                      "ec2:RevokeSecurityGroupIngress",
+                      "ec2:DeleteSecurityGroup"
+                    ],
+                    "Resource": "*",
+                    "Condition": {
+                      "Null": {
+                        "aws:ResourceTag/elbv2.k8s.aws/cluster": "false"
+                      }
+                    }
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "elasticloadbalancing:CreateLoadBalancer",
+                      "elasticloadbalancing:CreateTargetGroup"
+                    ],
+                    "Resource": "*",
+                    "Condition": {
+                      "Null": {
+                        "aws:RequestTag/elbv2.k8s.aws/cluster": "false"
+                      }
+                    }
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "elasticloadbalancing:CreateListener",
+                      "elasticloadbalancing:DeleteListener",
+                      "elasticloadbalancing:CreateRule",
+                      "elasticloadbalancing:DeleteRule"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "elasticloadbalancing:AddTags",
+                      "elasticloadbalancing:RemoveTags"
+                    ],
+                    "Resource": [
+                      "arn:aws:elasticloadbalancing:*:*:targetgroup/*/*",
+                      "arn:aws:elasticloadbalancing:*:*:loadbalancer/net/*/*",
+                      "arn:aws:elasticloadbalancing:*:*:loadbalancer/app/*/*"
+                    ],
+                    "Condition": {
+                      "Null": {
+                        "aws:RequestTag/elbv2.k8s.aws/cluster": "true",
+                        "aws:ResourceTag/elbv2.k8s.aws/cluster": "false"
+                      }
+                    }
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "elasticloadbalancing:AddTags",
+                      "elasticloadbalancing:RemoveTags"
+                    ],
+                    "Resource": [
+                      "arn:aws:elasticloadbalancing:*:*:listener/net/*/*/*",
+                      "arn:aws:elasticloadbalancing:*:*:listener/app/*/*/*",
+                      "arn:aws:elasticloadbalancing:*:*:listener-rule/net/*/*/*",
+                      "arn:aws:elasticloadbalancing:*:*:listener-rule/app/*/*/*"
+                    ]
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "elasticloadbalancing:ModifyLoadBalancerAttributes",
+                      "elasticloadbalancing:SetIpAddressType",
+                      "elasticloadbalancing:SetSecurityGroups",
+                      "elasticloadbalancing:SetSubnets",
+                      "elasticloadbalancing:DeleteLoadBalancer",
+                      "elasticloadbalancing:ModifyTargetGroup",
+                      "elasticloadbalancing:ModifyTargetGroupAttributes",
+                      "elasticloadbalancing:DeleteTargetGroup"
+                    ],
+                    "Resource": "*",
+                    "Condition": {
+                      "Null": {
+                        "aws:ResourceTag/elbv2.k8s.aws/cluster": "false"
+                      }
+                    }
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "elasticloadbalancing:AddTags"
+                    ],
+                    "Resource": [
+                      "arn:aws:elasticloadbalancing:*:*:targetgroup/*/*",
+                      "arn:aws:elasticloadbalancing:*:*:loadbalancer/net/*/*",
+                      "arn:aws:elasticloadbalancing:*:*:loadbalancer/app/*/*"
+                    ],
+                    "Condition": {
+                      "StringEquals": {
+                        "elasticloadbalancing:CreateAction": [
+                          "CreateTargetGroup",
+                          "CreateLoadBalancer"
+                        ]
+                      },
+                      "Null": {
+                        "aws:RequestTag/elbv2.k8s.aws/cluster": "false"
+                      }
+                    }
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "elasticloadbalancing:RegisterTargets",
+                      "elasticloadbalancing:DeregisterTargets"
+                    ],
+                    "Resource": "arn:aws:elasticloadbalancing:*:*:targetgroup/*/*"
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "elasticloadbalancing:SetWebAcl",
+                      "elasticloadbalancing:ModifyListener",
+                      "elasticloadbalancing:AddListenerCertificates",
+                      "elasticloadbalancing:RemoveListenerCertificates",
+                      "elasticloadbalancing:ModifyRule"
+                    ],
+                    "Resource": "*"
+                  }
+                ]
+              }
+    - name: loadbalancerRolePolicyAttachment
+      base: 
+        apiVersion: iam.aws.upbound.io/v1beta1
+        kind: RolePolicyAttachment
+        spec: 
+          forProvider: 
+            roleSelector:
+              matchControllerRef: true
+              matchLabels: 
+                role: loadbalancer
+            policyArnSelector: 
+              matchControllerRef: true
+              matchLabels: 
+                role: loadbalancer
+    - name: loadbalancer
+      base: 
+        apiVersion: helm.crossplane.io/v1beta1
+        kind: Release
+        spec: 
+          forProvider: 
+            namespace: kube-system
+            chart: 
+              name: aws-load-balancer-controller
+              repository: https://aws.github.io/eks-charts
+            values: 
+              serviceAccount:
+                name: aws-load-balancer-controller
+                annotations: {}      
+      patches: 
+      - fromFieldPath: metadata.name
+        toFieldPath: spec.forProvider.values.clusterName
+      - fromFieldPath: status.eks.loadBalancer.roleArn
+        toFieldPath: spec.forProvider.values.serviceAccount.annotations[eks.amazonaws.com/role-arn]
+      - fromFieldPath: spec.parameters.id
+        toFieldPath: spec.providerConfigRef.name
+    - name: providerConfig-helm
+      base:
+        apiVersion: helm.crossplane.io/v1beta1
+        kind: ProviderConfig
+        spec:
+          credentials:
+            source: Secret
+            secretRef:
+              key: kubeconfig
+      patches:
+        - fromFieldPath: spec.parameters.id
+          toFieldPath: metadata.name
+        - type: PatchSet
+          patchSetName: deletionPolicy
+        - fromFieldPath: spec.writeConnectionSecretToRef.namespace
+          toFieldPath: spec.credentials.secretRef.namespace
+        - fromFieldPath: metadata.uid
+          toFieldPath: spec.credentials.secretRef.name
+          transforms:
+            - type: string
+              string:
+                fmt: "%s-ekscluster"
+      readinessChecks:
+        - type: None
+    - name: providerConfig-kubernetes
+      base:
+        apiVersion: kubernetes.crossplane.io/v1alpha1
+        kind: ProviderConfig
+        spec:
+          credentials:
+            source: Secret
+            secretRef:
+              key: kubeconfig
+      patches:
+        - fromFieldPath: spec.parameters.id
+          toFieldPath: metadata.name
+        - type: PatchSet
+          patchSetName: deletionPolicy
+        - fromFieldPath: spec.writeConnectionSecretToRef.namespace
+          toFieldPath: spec.credentials.secretRef.namespace
+        - fromFieldPath: metadata.uid
+          toFieldPath: spec.credentials.secretRef.name
+          transforms:
+            - type: string
+              string:
+                fmt: "%s-ekscluster"
+      readinessChecks:
+        - type: None

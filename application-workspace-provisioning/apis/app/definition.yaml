@@ -1,0 +1,39 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xapps.example.upbound.io
+spec:
+  group: example.upbound.io
+  names:
+    kind: XApp
+    plural: xapps
+  claimNames:
+    kind: App
+    plural: apps
+  versions:
+  - name: v1alpha1
+    served: true
+    referenceable: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              parameters: 
+                type: object
+                properties: 
+                  cluster: 
+                    description: the target cluster
+                    type: string
+                  namespace: 
+                    description: the target namespace
+                    type: string
+                  source:
+                    description: the source repository for the application
+                    type: string
+                  path:
+                    description: the path in the source repository for the application
+                    type: string
+

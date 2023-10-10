@@ -1,0 +1,42 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: xservices.aws.caas.upbound.io
+  labels:
+    type: default
+spec:
+  writeConnectionSecretsToNamespace: upbound-system
+  compositeTypeRef:
+    apiVersion: aws.caas.upbound.io/v1alpha1
+    kind: XServices
+  resources: 
+  - name: argocd-registration
+    base:
+      apiVersion: kubernetes.crossplane.io/v1alpha1
+      kind: Object
+      spec: 
+        forProvider: 
+          manifest: 
+            apiVersion: v1
+            kind: Secret
+            metadata: 
+              namespace: argocd
+        references:
+        - patchesFrom:
+            apiVersion: v1
+            kind: Secret
+            fieldPath: data.kubeconfig
+          toFieldPath: data.kubeconfig
+    patches: 
+    - fromFieldPath: spec.gitops.registerTo
+      toFieldPath: spec.providerConfigRef.name
+    - fromFieldPath: spec.providerConfigRef.name
+      toFieldPath: spec.forProvider.manifest.metadata.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-kubeconfig"
+    - fromFieldPath: spec.gitops.kubeConfigSecretRef.name
+      toFieldPath: spec.references[0].patchesFrom.name
+    - fromFieldPath: spec.gitops.kubeConfigSecretRef.namespace
+      toFieldPath: spec.references[0].patchesFrom.namespace
