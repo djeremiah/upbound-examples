@@ -1,0 +1,91 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: xproviders.example.upbound.io
+spec:
+  writeConnectionSecretsToNamespace: upbound-system
+  compositeTypeRef:
+    apiVersion: example.upbound.io/v1alpha1
+    kind: XProvider
+  resources:
+  - name: service-account
+    base:
+      apiVersion: kubernetes.crossplane.io/v1alpha1
+      kind: Object
+      spec:
+        forProvider:
+          manifest:
+            apiVersion: v1
+            kind: ServiceAccount
+            metadata:
+              namespace: upbound-system
+    patches:
+    - fromFieldPath: spec.parameters.providerName
+      toFieldPath: spec.forProvider.manifest.metadata.name
+    - fromFieldPath: spec.providerConfigRef.name
+      toFieldPath: spec.providerConfigRef.name
+  - name: cluster-role-binding
+    base:
+      apiVersion: kubernetes.crossplane.io/v1alpha1
+      kind: Object
+      spec:
+        forProvider:
+          manifest:
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRoleBinding
+            subjects:
+              - kind: ServiceAccount
+                namespace: upbound-system
+            roleRef:
+              kind: ClusterRole
+              name: cluster-admin
+              apiGroup: rbac.authorization.k8s.io
+    patches:
+    - fromFieldPath: spec.parameters.providerName
+      toFieldPath: spec.forProvider.manifest.metadata.name
+    - fromFieldPath: spec.parameters.providerName
+      toFieldPath: spec.forProvider.manifest.subjects[0].name
+    - fromFieldPath: spec.providerConfigRef.name
+      toFieldPath: spec.providerConfigRef.name
+  - name: controller-config
+    base:
+      apiVersion: kubernetes.crossplane.io/v1alpha1
+      kind: Object
+      spec:
+        forProvider:
+          manifest:
+            apiVersion: pkg.crossplane.io/v1alpha1
+            kind: ControllerConfig
+    patches:
+    - fromFieldPath: spec.parameters.providerName
+      toFieldPath: spec.forProvider.manifest.metadata.name
+      transforms:
+      - type: string
+        string:
+          fmt:  "%s-hub"
+    - fromFieldPath: spec.parameters.providerName
+      toFieldPath: spec.forProvider.manifest.spec.serviceAccountName
+    - fromFieldPath: spec.providerConfigRef.name
+      toFieldPath: spec.providerConfigRef.name
+  - name: provider
+    base:
+      apiVersion: kubernetes.crossplane.io/v1alpha1
+      kind: Object
+      spec:
+        forProvider:
+          manifest:
+            apiVersion: pkg.crossplane.io/v1
+            kind: Provider
+    patches:
+    - fromFieldPath: spec.parameters.providerName
+      toFieldPath: spec.forProvider.manifest.metadata.name
+    - fromFieldPath: spec.parameters.providerPkg
+      toFieldPath: spec.forProvider.manifest.spec.package
+    - fromFieldPath: spec.parameters.providerName
+      toFieldPath: spec.forProvider.manifest.spec.controllerConfigRef.name
+      transforms:
+      - type: string
+        string:
+          fmt:  "%s-hub"
+    - fromFieldPath: spec.providerConfigRef.name
+      toFieldPath: spec.providerConfigRef.name

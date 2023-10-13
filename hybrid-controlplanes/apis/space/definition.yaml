@@ -1,0 +1,48 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xspaces.example.upbound.io
+spec:
+  group: example.upbound.io
+  names:
+    kind: XSpace
+    plural: xspaces
+  claimNames:
+    kind: Space
+    plural: spaces
+  versions:
+  - name: v1alpha1
+    served: true
+    referenceable: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              parameters:
+                type: object
+                properties:
+                  clusterId:
+                    type: string
+                    description: ID of the cluster to deploy the space into
+                  account:
+                    type: string
+                    description: Your Upbound organization account string
+                  tokenSecretRef:
+                    type: object
+                    description: Reference to a secret containing the Upbound spaces license token
+                    properties:
+                      name: 
+                        type: string
+                        description: Name of secret containing the Upbound spaces license token
+                      namespace: 
+                        type: string
+                        description: Namespace of secret containing the Upbound spaces license token
+                  version:
+                    type: string
+                    description: Version of Upbound space to install
+                  host:
+                    type: string
+                    description: The domain name that's used to access the control plane instances
