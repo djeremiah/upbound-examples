@@ -1,0 +1,8 @@
+apiVersion: example.upbound.io/v1alpha1
+kind: JobRun
+metadata:
+  name: murphjob3
+spec:
+  parameters:
+    name: murphjob3
+    location: us-central1

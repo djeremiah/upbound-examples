@@ -1,0 +1,124 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: default-jobrun
+spec:
+  writeConnectionSecretsToNamespace: upbound-system
+  compositeTypeRef:
+    apiVersion: example.upbound.io/v1alpha1
+    kind: XJobRun
+  resources:
+  - name: cloudrun-job
+    base:
+      apiVersion: cloudrun.gcp.upbound.io/v1beta1
+      kind: V2Job
+      spec:
+        forProvider:
+          location: us-central1
+          template:
+            - template:
+                - containers:
+                    - image: us-docker.pkg.dev/cloudrun/container/hello
+    patches:
+    - fromFieldPath: spec.parameters.name
+      toFieldPath: metadata.annotations['crossplane.io/external-name']
+    - fromFieldPath: spec.parameters.location
+      toFieldPath: spec.forProvider.location
+    - type: ToCompositeFieldPath
+      fromFieldPath: status.atProvider
+      toFieldPath: status.job
+      policy:
+        fromFieldPath: Required
+  - name: execute-job-script
+    base:
+      apiVersion: kubernetes.crossplane.io/v1alpha2
+      kind: Object
+      spec:
+        forProvider:
+          manifest:
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              namespace: upbound-system
+            data:
+              run.sh: "" # patched
+    patches:
+    - fromFieldPath: spec.parameters.name
+      toFieldPath: spec.forProvider.manifest.metadata.name
+      transforms:
+      - type: string
+        string:
+          type: Format
+          fmt: "execute-job-%s"
+    - type: CombineFromComposite
+      toFieldPath: spec.forProvider.manifest.data['run.sh']
+      combine:
+        variables:
+        - fromFieldPath: status.job.project
+        - fromFieldPath: spec.parameters.location
+        - fromFieldPath: spec.parameters.name
+        strategy: string
+        string:
+          fmt: |
+            #!/bin/sh
+            gcloud config set account murph-demo-sa@crossplane-playground.iam.gserviceaccount.com
+            gcloud auth activate-service-account --key-file=/credentials/key.json --project=%s
+            gcloud run jobs execute --region=%s %s
+      policy:
+        fromFieldPath: Required
+  - name: execute-job
+    base:
+      apiVersion: kubernetes.crossplane.io/v1alpha2
+      kind: Object
+      spec:
+        forProvider:
+          manifest:
+            apiVersion: batch/v1
+            kind: Job
+            metadata:
+              namespace: upbound-system
+            spec:
+              template:
+                spec:
+                  containers:
+                  - name: gcloud
+                    image: gcr.io/google.com/cloudsdktool/google-cloud-cli
+                    command: ["/scripts/run.sh"]
+                    volumeMounts:
+                    - name: gcp-credentials
+                      mountPath: /credentials
+                      readOnly: true
+                    - name: execute-job
+                      mountPath: /scripts
+                      readOnly: true
+                  volumes:
+                  - name: gcp-credentials
+                    secret:
+                      secretName: gcp-credentials
+                      items:
+                      - key: credentials
+                        path: key.json
+                  - name: execute-job
+                    configMap:            
+                      name: execute-job-configmap
+                      items:
+                      - key: run.sh
+                        path: run.sh
+                        mode: 511
+                  restartPolicy: Never
+              backoffLimit: 4
+    patches:
+    - fromFieldPath: spec.parameters.name
+      toFieldPath: spec.forProvider.manifest.metadata.name
+      transforms:
+      - type: string
+        string:
+          type: Format
+          fmt: "execute-job-%s"
+    - fromFieldPath: spec.parameters.name
+      toFieldPath: spec.forProvider.manifest.spec.template.spec.volumes[1].configMap.name
+      transforms:
+      - type: string
+        string:
+          type: Format
+          fmt: "execute-job-%s"
