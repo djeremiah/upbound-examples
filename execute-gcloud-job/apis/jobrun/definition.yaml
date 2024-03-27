@@ -1,0 +1,47 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xjobruns.example.upbound.io
+spec:
+  group: example.upbound.io
+  names:
+    kind: XJobRun
+    plural: xjobruns
+  claimNames:
+    kind: JobRun
+    plural: jobruns
+  versions:
+  - name: v1alpha1
+    served: true
+    referenceable: true
+    schema:
+      openAPIV3Schema:
+        description: JobRun creates a gcloud Job V2, then schedules it to execute immediately 
+        type: object
+        properties:
+          spec:
+            description: Specification of the desired state of the Composite Resource
+            type: object
+            properties:
+              parameters:
+                description: Configuration parameters for XJobruns
+                type: object
+                properties:
+                  name:
+                    description: GCloud Job name
+                    type: string
+                  location:
+                    description: Region to run Job in
+                    type: string
+                required:
+                - name
+                - location
+            required:
+            - parameters
+          status:
+            description: Most recently observed state of the Composite Resource
+            properties:
+              job:
+                description: Observed state of the GCloud job
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
